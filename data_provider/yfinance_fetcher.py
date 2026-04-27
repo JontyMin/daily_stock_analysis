@@ -376,6 +376,11 @@ class YfinanceFetcher(BaseFetcher):
 
     def _get_hk_main_indices(self, yf) -> Optional[List[Dict[str, Any]]]:
         """获取港股主要指数行情（HSI、HSTECH、HSCEI），复用 _fetch_yf_ticker_data"""
+        # Yahoo Finance 港股指数符号映射：
+        # - HSI -> ^HSI
+        # - HSTECH -> HSTECH.HK（不是 ^HSTECH）
+        # - HSCEI -> ^HSCE（不是 ^HSCEI）
+        # 该映射由离线单测 tests/test_yfinance_hk_indices.py 固化，避免在线依赖导致非确定性失败。
         hk_indices = {
             'HSI': ('^HSI', '恒生指数'),
             'HSTECH': ('HSTECH.HK', '恒生科技指数'),
