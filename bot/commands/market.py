@@ -81,6 +81,35 @@ class MarketCommand(BotCommand):
             config = get_config()
             notifier = NotificationService(source_message=message)
 
+            # 交易日过滤：与 main.py 行为一致，避免在所有相关市场休市时仍调用复盘 / 推送
+            override_region: "str | None" = None
+            if getattr(config, "trading_day_check_enabled", True):
+                try:
+                    from src.core.trading_calendar import (
+                        get_open_markets_today,
+                        compute_effective_region,
+                    )
+
+                    open_markets = get_open_markets_today()
+                    override_region = compute_effective_region(
+                        getattr(config, "market_review_region", "cn") or "cn",
+                        open_markets,
+                    )
+                except Exception as calendar_err:
+                    logger.warning(
+                        "[MarketCommand] 交易日过滤 fail-open: %s", calendar_err
+                    )
+                    override_region = None
+
+                if override_region == "":
+                    logger.info("[MarketCommand] 今日相关市场休市，跳过大盘复盘")
+                    if notifier.is_available():
+                        notifier.send(
+                            "🎯 大盘复盘\n\n今日相关市场休市，已跳过大盘复盘。",
+                            email_send_to_all=True,
+                        )
+                    return
+
             # 初始化搜索服务
             search_service = None
             if config.has_search_capability_enabled():
@@ -107,6 +136,7 @@ class MarketCommand(BotCommand):
                 analyzer=analyzer,
                 search_service=search_service,
                 send_notification=True,
+                override_region=override_region,
             )
 
             if review_report:
